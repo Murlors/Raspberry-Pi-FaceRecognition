@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="zh">
+    <head>
+        <meta charset="UTF-8">
+        <title>人脸识别结果</title>
+    </head>
+    <body>
+        <div class="maindiv">
+            识别结果:<br />
+            <img src="{{ url_for('recognize_result')}}" alt="识别结果">
+            <form action="/return_index" method="POST">
+                <input type="submit" value="返回">
+            </form>
+            说明：每张识别结果照片都会保存在"result"子文件夹下。<br />
+        </div>
+    </body>
+</html>

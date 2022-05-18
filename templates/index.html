@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh">
+    <head>
+        <meta charset="UTF-8">
+        <title>树莓派</title>
+    </head>
+    <body>
+        <div class="maindiv">
+            <img src="{{ url_for('video_feed')}}" alt="实时图像">
+            <h3>人脸上传：</h3>
+            <form action = "/face_upload" method = "POST" enctype = "multipart/form-data">
+                姓名：<br />
+                <label>
+                    <input type = "text" name = "name">
+                </label>
+                <br />
+                <input type = "file" name = "file" />
+                <input type = "submit" value= "提交" />
+            </form>
+            <form action="/face_recognize" method= "POST">
+                tolerance:<br />
+                <label>
+                    <input type="text" name="tolerance" value={{tolerance}}>
+                </label>
+                <input type="submit" value="进行人脸识别">
+            </form>
+            说明：由于树莓派人脸识别时间长，难以实时完成，这里设计成点击按键启动识别。每点击一次进行一次人脸识别。<br />
+        </div>
+    </body>
+</html>

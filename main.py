@@ -11,11 +11,12 @@ import numpy as np
 from flask import Flask, render_template, request, Response
 
 
-class myApp:
+class MyApp:
     def __init__(self):
         self.known_face_encodings = []
         self.known_face_names = []
 
+        # 读取数据库
         self.db_name = 'face_recognize.db'
         self.table_name = 'FACE_ENCODING'
         conn = sqlite3.connect(self.db_name)
@@ -29,8 +30,10 @@ class myApp:
         conn.close()
 
         self.frame = np.zeros((10, 10), np.uint8)
+        # 公差
         self.tolerance = 0.39
 
+        # Flask 路由绑定
         self.app = Flask(__name__)
         self.app.add_url_rule('/', view_func=self.index)
         self.app.add_url_rule('/video_feed', view_func=self.video_feed)
@@ -45,7 +48,7 @@ class myApp:
         return render_template('index.html', data={'fps': 24}, tolerance=self.tolerance)
 
     def video_feed(self):
-        return Response(self.getImage(), mimetype='multipart/x-mixed-replace;boundary=frame')
+        return Response(self.get_image(), mimetype='multipart/x-mixed-replace;boundary=frame')
 
     def face_upload(self):
         name = request.values.get('name')
@@ -54,12 +57,17 @@ class myApp:
         img = request.files['file']
         img.save(name + '.jpg')
         image = face_recognition.load_image_file(name + '.jpg')
+        # 在上传的图片中选第一个识别到的脸
         face_encoding = face_recognition.face_encodings(image)[0]
+
         self.known_face_encodings.append(face_encoding)
         self.known_face_names.append(name)
+        # 将人脸数据放入数据库
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
+        # pickle把脸部数据对象编码成二进制数据
         encoding_bytes = pickle.dumps(face_encoding)
+        # 将二进制数据进行base64编码
         base_out = base64.b64encode(encoding_bytes)
         cursor.execute('''INSERT INTO ''' + self.table_name + ''' (NAME,ENCODING) VALUES (?,?)''', (name, base_out))
         conn.commit()
@@ -71,25 +79,27 @@ class myApp:
         return render_template('result.html')
 
     def recognize_result(self):
-        return Response(self.getResult(), mimetype='multipart/x-mixed-replace;boundary=frame')
+        return Response(self.get_result(), mimetype='multipart/x-mixed-replace;boundary=frame')
 
-    def getImage(self):
-        face_names = []
-        face_locations = []
+    def get_image(self):
         camera = cv2.VideoCapture(0)
         while True:
             ret, self.frame = camera.read()
             show_img = self.frame.copy()
             read_end = time.time()
 
+            # 减小图片大小加速处理
             small_frame = cv2.resize(show_img, (0, 0), fx=0.25, fy=0.25)
+            # 将图片由BGR转为RGB
             rgb_small_frame = small_frame[:, :, ::-1]
+            # 寻找人脸位置
             face_locations = face_recognition.face_locations(rgb_small_frame)
 
             process_end = time.time()
             cv2.putText(show_img, 'move:%sms' % (round((process_end - read_end) * 1000, 3)), (20, 50),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
+            # 人脸周围画框
             for (top, right, bottom, left) in face_locations:
                 cv2.rectangle(show_img, (left << 2, top << 2), (right << 2, bottom << 2), (0, 0, 255), 2)
 
@@ -98,14 +108,19 @@ class myApp:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + show_frame + b'\r\n')
 
-    def getResult(self):
+    def get_result(self):
         show_img = self.frame.copy()
-        small_frame = cv2.resize(show_img, (0, 0), fx=0.5, fy=0.5)
+        # 减小图片大小加速处理
+        small_frame = cv2.resize(show_img, (0, 0), fx=0.25, fy=0.25)
+        # 将图片由BGR转为RGB
         rgb_small_frame = small_frame[:, :, ::-1]
+
         face_names = []
-        face_locations = []
+        # 寻找人脸位置
         face_locations = face_recognition.face_locations(rgb_small_frame)
+        # 对找到的人脸进行编码
         face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+        # 与数据库中的人脸进行匹配
         for face_encoding in face_encodings:
             matches = face_recognition.compare_faces(self.known_face_encodings, face_encoding, tolerance=self.tolerance)
             name = "Unknown"
@@ -114,6 +129,7 @@ class myApp:
                 name = self.known_face_names[first_match_index]
             face_names.append(name)
 
+        # 在识别到的人脸上加上信息
         for (top, right, bottom, left), name in zip(face_locations, face_names):
             top <<= 1
             right <<= 1
@@ -123,11 +139,12 @@ class myApp:
             cv2.rectangle(show_img, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
             font = cv2.FONT_HERSHEY_DUPLEX
             cv2.putText(show_img, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
-        cv2.imwrite(os.path.join('result', str(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')) + '.jpg'), show_img)
+        cv2.imwrite(os.path.join('result', str(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')) + '.jpg'),
+                    show_img)
         show_frame = cv2.imencode('.jpg', show_img)[1].tobytes()
         return (b'--frame\r\n'
                 b'Content-Type: image/jpeg\r\n\r\n' + show_frame + b'\r\n')
 
 
 if __name__ == '__main__':
-    myApp()
+    MyApp()
